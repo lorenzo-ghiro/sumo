@@ -267,8 +267,12 @@ MSCFModel_CC::getSecureGap(const MSVehicle* const veh, const MSVehicle* const pr
     // for all the other cases return the safety gap of the autonomous controller
     // TODO: this might cause lone ACC vehicles to cut in front of a FAKED_CACC trying to reach its intended leader
     // needs fixing for the future
-    if (vars->activeController == Plexe::FAKED_CACC)
-        return getCruisingDistance(veh, vars->fakeData.targetController, speed, leaderSpeed, tolerance);
+    if (vars->activeController == Plexe::FAKED_CACC) {
+        if (pred->getID() == vars->fakeData.joiningPredecessor->getID())
+            return getCruisingDistance(veh, vars->fakeData.targetController, speed, leaderSpeed, tolerance);
+        else
+            return getCruisingDistance(veh, Plexe::ACC, speed, leaderSpeed);
+    }
     else
         return getCruisingDistance(veh, vars->activeController, speed, leaderSpeed, tolerance);
 
