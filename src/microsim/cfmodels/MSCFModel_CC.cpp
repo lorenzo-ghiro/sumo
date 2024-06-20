@@ -224,13 +224,11 @@ MSCFModel_CC::performPlatoonLaneChange(MSVehicle* const veh) const {
 }
 
 double
-MSCFModel_CC::getSecureGap(const MSVehicle* const veh, const MSVehicle* const pred, const double speed, const double leaderSpeed, const double leaderMaxDecel) const {
-    CC_VehicleVariables* vars = (CC_VehicleVariables*)veh->getCarFollowVariables();
-
-    const double tolerance = 0.8;
-    switch (vars->activeController) {
+MSCFModel_CC::getCruisingDistance(const MSVehicle* const veh, enum Plexe::ACTIVE_CONTROLLER controller, double speed, double leaderSpeed, double tolerance = 1) const {
+    auto vars = (CC_VehicleVariables*)veh->getCarFollowVariables();
+    switch (controller) {
         case Plexe::CACC:
-        case Plexe::FAKED_CACC:
+//        case Plexe::FAKED_CACC:
             return vars->caccSpacing * tolerance;
         case Plexe::ACC:
             return (vars->accHeadwayTime * speed + 2) * tolerance;
@@ -240,11 +238,40 @@ MSCFModel_CC::getSecureGap(const MSVehicle* const veh, const MSVehicle* const pr
             return d_i_j(vars->vehicles, vars->h, 1, 0) * tolerance;
         case Plexe::FLATBED:
             return (vars->flatbedD - vars->flatbedH * (speed - leaderSpeed)) * tolerance;
-        case Plexe::DRIVER:
-            return myHumanDriver->getSecureGap(veh, pred, speed, leaderSpeed, leaderMaxDecel);
+//        case Plexe::DRIVER:
+//            return myHumanDriver->getSecureGap(veh, pred, speed, leaderSpeed, leaderMaxDecel);
         default:
-            throw InvalidArgument("Unsupported activeController" + toString(vars->activeController));
+            throw InvalidArgument("Invalid controller " + toString(controller) + " passed to getCruisingDistance()");
     }
+}
+
+double
+MSCFModel_CC::getSecureGap(const MSVehicle* const veh, const MSVehicle* const pred, const double speed, const double leaderSpeed, const double leaderMaxDecel) const {
+    auto vars = (CC_VehicleVariables*)veh->getCarFollowVariables();
+    double tolerance = 0.8;
+
+    // if veh (vehicle behind) is a CC driven by a human, let the CFM of the model compute the safety gap
+    if (vars->activeController == Plexe::DRIVER)
+        return myHumanDriver->getSecureGap(veh, pred, speed, leaderSpeed, leaderMaxDecel);
+
+    auto pred_vars = dynamic_cast<CC_VehicleVariables*>(pred->getCarFollowVariables());
+    // if the predecessor is a pure human driver, it is not platooning capable, so return a large safe gap (ACC)
+    if (!pred_vars)
+        return getCruisingDistance(veh, Plexe::ACC, speed, leaderSpeed);
+
+    // if the predecessor uses a CC CFM ...
+    // ... and it is a human driver, return a large safe gap
+    if (pred_vars->activeController == Plexe::DRIVER)
+        return getCruisingDistance(veh, Plexe::ACC, speed, leaderSpeed);
+
+    // for all the other cases return the safety gap of the autonomous controller
+    // TODO: this might cause lone ACC vehicles to cut in front of a FAKED_CACC trying to reach its intended leader
+    // needs fixing for the future
+    if (vars->activeController == Plexe::FAKED_CACC)
+        return getCruisingDistance(veh, vars->fakeData.targetController, speed, leaderSpeed, tolerance);
+    else
+        return getCruisingDistance(veh, vars->activeController, speed, leaderSpeed, tolerance);
+
 }
 
 int
@@ -868,6 +895,7 @@ void MSCFModel_CC::setParameter(MSVehicle* veh, const std::string& key, const st
                         throw libsumo::TraCIException("Removing " + value + " from members but " + value + " is not using MSCFModel_CC");
                     }
                     cfm->setLeader(vehicle, nullptr, "");
+                    // TODO: if I remove a member in the middle, I should shift all positions behind by one!
                     vars->members.erase(item);
                     break;
                 }
@@ -998,6 +1026,28 @@ void MSCFModel_CC::setParameter(MSVehicle* veh, const std::string& key, const st
         }
         if (key.compare(PAR_ACTIVE_CONTROLLER) == 0) {
             vars->activeController = (enum Plexe::ACTIVE_CONTROLLER) StringUtils::toInt(value.c_str());
+            return;
+        }
+        if (key.compare(PAR_ACTIVE_FAKED_CACC) == 0) {
+            int targetController, bufRole;
+            std::string futurePredecessorId;
+            MSVehicle* futurePredecessor;
+            buf >> targetController >> bufRole >> futurePredecessorId;
+            vars->activeController = Plexe::FAKED_CACC;
+            vars->fakeData.role = (Plexe::FAKED_CACC_ROLE)bufRole;
+            vars->fakeData.targetController = (enum Plexe::ACTIVE_CONTROLLER) targetController;
+            if (vars->fakeData.targetController == Plexe::FAKED_CACC)
+                throw libsumo::TraCIException("activateFakedCACC: cannot pass FAKED_CACC as target controller");
+
+            futurePredecessor = findVehicle(futurePredecessorId);
+            if (!futurePredecessor)
+                throw libsumo::TraCIException("activateFakedCACC: specified predecessor " + futurePredecessorId + " does not exist");
+
+            if (vars->fakeData.role == Plexe::FAKED_CACC_ROLE::JOINER)
+                vars->fakeData.joiningPredecessor = futurePredecessor;
+            else
+                vars->fakeData.joiningVehicle = futurePredecessor;
+
             return;
         }
         if (key.compare(PAR_ACC_HEADWAY_TIME) == 0) {

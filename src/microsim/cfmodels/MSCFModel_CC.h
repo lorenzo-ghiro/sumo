@@ -77,6 +77,8 @@ public:
     /// @brief Destructor
     ~MSCFModel_CC();
 
+    bool isInSamePlatoon(const MSVehicle* const veh, const MSVehicle* const other) const;
+
     virtual double getSecureGap(const MSVehicle* const veh, const MSVehicle* const /*pred*/, const double speed, const double leaderSpeed, const double leaderMaxDecel) const;
 
     /// @name Implementations of the MSCFModel interface
@@ -343,6 +345,8 @@ private:
      * @param veh leader vehicle of the platoon
      */
     void performPlatoonLaneChange(MSVehicle* const veh) const;
+
+    double getCruisingDistance(const MSVehicle* const veh, enum Plexe::ACTIVE_CONTROLLER controller, double speed, double leaderSpeed, double tolerance) const;
 
     double _v(const MSVehicle* const veh, double gap2pred, double egoSpeed, double predSpeed) const;
 
