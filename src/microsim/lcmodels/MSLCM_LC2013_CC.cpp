@@ -32,6 +32,10 @@ int MSLCM_LC2013_CC::checkChangeBeforeCommitting(const MSVehicle* veh, int state
     if (state & LCA_WANTS_LANECHANGE) {
         auto* cfm = dynamic_cast<const MSCFModel_CC*>(&veh->getCarFollowModel());
 
+        CC_VehicleVariables* vars = (CC_VehicleVariables*)veh->getCarFollowVariables();
+        if (vars->independentLaneChange)
+            return 0;
+
         if (cfm) {
             bool left = (state & LCA_LEFT) != 0;
             return cfm->commitToLaneChange(veh, left);

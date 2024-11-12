@@ -201,6 +201,8 @@ struct VEHICLE_DATA {
 // perform a lane change for a whole platoon
 #define PAR_PLATOON_FIXED_LANE           "ccpfl"
 
+#define PAR_INDEPENDENT_LANE_CHANGE       "ccilc"
+
 // set the formation for a platoon leader or member
 #define PAR_SET_PLATOON_FORMATION        "ccspf"
 

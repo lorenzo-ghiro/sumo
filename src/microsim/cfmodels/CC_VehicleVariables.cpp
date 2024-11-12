@@ -64,7 +64,7 @@ CC_VehicleVariables::CC_VehicleVariables() :
     usePrediction(false),
     autoLaneChange(false),
     platoonFixedLane(-1),
-    commitToLaneChange(true), noCommitReason(0), laneChangeCommitTime(-1) {
+    commitToLaneChange(true), noCommitReason(0), independentLaneChange(false), laneChangeCommitTime(-1) {
     fakeData.frontAcceleration = 0;
     fakeData.frontControllerAcceleration = 0;
     fakeData.frontDistance = 0;

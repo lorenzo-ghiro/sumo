@@ -937,6 +937,15 @@ void MSCFModel_CC::setParameter(MSVehicle* veh, const std::string& key, const st
             }
             return;
         }
+        if (key.compare(PAR_INDEPENDENT_LANE_CHANGE) == 0) {
+            vars->independentLaneChange = StringUtils::toInt(value.c_str()) == 1;
+            // making a platoon member independent of the rest of platoons in terms of LaneChange actions
+            if (vars->independentLaneChange) {
+                vars->autoLaneChange = false;
+                vars->platoonFixedLane = -1;
+            }
+            return;
+        }
         if (key.compare(CC_PAR_CACC_XI) == 0) {
             vars->caccXi = StringUtils::toDouble(value.c_str());
             recomputeParameters(veh);

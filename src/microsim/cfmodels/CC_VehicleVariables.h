@@ -195,6 +195,9 @@ public:
     /// @brief if a follower asks and we don't commit, what should be the blocked state to return?
     int noCommitReason;
 
+    /// @brief lane change decisions irrespective of other platoon members lcaStates
+    bool independentLaneChange;
+
     /// @brief timestep for which the above commit is valid¬
     SUMOTime laneChangeCommitTime;
 
