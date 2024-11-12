@@ -48,6 +48,19 @@ enum PLATOONING_LANE_CHANGE_ACTION {
 enum ACTIVE_CONTROLLER
 {DRIVER = 0, ACC = 1, CACC = 2, FAKED_CACC = 3, PLOEG = 4, CONSENSUS = 5, FLATBED = 6};
 
+/** @enum FAKED_CACC_ROLE
+ * @brief Role of the vehicle that is activating the FAKED_CACC controller.
+ * FAKED_CACC is used for joining maneuvers. The joiner, to get in position
+ * behind the future predecessor, for a platoon member to open a gap for the
+ * joiner (its future predecessor). It is necessary to inform SUMO about
+ * this to properly take lane changing decisions.
+ */
+enum FAKED_CACC_ROLE {
+    NONE = 0,
+    JOINER = 1,
+    GAP_OPENER = 2,
+};
+
 /**
  * @brief struct used as header for generic data passing to this model through
  * traci
@@ -144,6 +157,9 @@ struct VEHICLE_DATA {
 
 // set the currently active vehicle controller which can be either the driver, or the ACC or the CACC
 #define PAR_ACTIVE_CONTROLLER            "ccac"
+
+// activates the faked cacc passing the role and the future predecessor
+#define PAR_ACTIVE_FAKED_CACC            "ccafc"
 
 // get radar data from the car
 #define PAR_RADAR_DATA                   "ccrd"

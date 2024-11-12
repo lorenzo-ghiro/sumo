@@ -1048,6 +1048,28 @@ void MSCFModel_CC::setParameter(MSVehicle* veh, const std::string& key, const st
             vars->activeController = (enum Plexe::ACTIVE_CONTROLLER) StringUtils::toInt(value.c_str());
             return;
         }
+        if (key.compare(PAR_ACTIVE_FAKED_CACC) == 0) {
+            int targetController, bufRole;
+            std::string futurePredecessorId;
+            MSVehicle* futurePredecessor;
+            buf >> targetController >> bufRole >> futurePredecessorId;
+            vars->activeController = Plexe::FAKED_CACC;
+            vars->fakeData.role = (Plexe::FAKED_CACC_ROLE)bufRole;
+            vars->fakeData.targetController = (enum Plexe::ACTIVE_CONTROLLER) targetController;
+            if (vars->fakeData.targetController == Plexe::FAKED_CACC)
+                throw libsumo::TraCIException("activateFakedCACC: cannot pass FAKED_CACC as target controller");
+
+            futurePredecessor = findVehicle(futurePredecessorId);
+            if (!futurePredecessor)
+                throw libsumo::TraCIException("activateFakedCACC: specified predecessor " + futurePredecessorId + " does not exist");
+
+            if (vars->fakeData.role == Plexe::FAKED_CACC_ROLE::JOINER)
+                vars->fakeData.joiningPredecessor = futurePredecessor;
+            else
+                vars->fakeData.joiningVehicle = futurePredecessor;
+
+            return;
+        }
         if (key.compare(PAR_ACC_HEADWAY_TIME) == 0) {
             vars->accHeadwayTime = StringUtils::toDouble(value.c_str());
             return;

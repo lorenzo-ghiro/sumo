@@ -57,6 +57,10 @@ public:
         double leaderSpeed;
         double leaderAcceleration;
         double leaderControllerAcceleration;
+        enum Plexe::FAKED_CACC_ROLE role = Plexe::FAKED_CACC_ROLE::NONE;
+        enum Plexe::ACTIVE_CONTROLLER targetController;
+        MSVehicle* joiningPredecessor = nullptr;
+        MSVehicle* joiningVehicle = nullptr;
     };
 
     /**
