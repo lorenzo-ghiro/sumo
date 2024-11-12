@@ -251,6 +251,14 @@ public:
     double getACCAcceleration(const MSVehicle* veh) const;
 
     /**
+     * @brief computes whether a lane change for vehicle veh is possible or not.
+     * @param veh vehicle for which the check should be made.
+     * @param left whether we want to check for a left or right lane-change
+     * @return 0 if it is the requested lane-change can be done, the blocking reason otherwise
+     */
+    int couldChangeLane(const MSVehicle* veh, bool left) const;
+
+    /**
      * @brief computes whether a lane change for a whole platoon is safe or not.
      * This is done by checking the lane change state and neighbors of all vehicles in the platoon added through
      * the addPlatoonMember API. If the adjacent lane is free and there is enough safe gap for the platoon, the
