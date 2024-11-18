@@ -27,6 +27,7 @@
 #include <microsim/MSVehicleType.h>
 #include <utils/xml/SUMOXMLDefinitions.h>
 #include <microsim/cfmodels/MSCFModel_Krauss.h>
+#include <microsim/cfmodels/MSCFModel_EIDM.h>
 #include <string.h>
 
 #include <microsim/engine/GenericEngineModel.h>
@@ -259,6 +260,13 @@ public:
     int couldChangeLane(const MSVehicle* veh, bool left) const;
 
     /**
+     * @brief tells if veh needs an urgent laneChange (left or right)
+     * @param veh vehicle for which the check should be made.
+     * @return true if has LCA_URGENT flag activated for either left or right lcState
+     */
+    bool needLaneChange(const MSVehicle* veh) const;
+
+    /**
      * @brief computes whether a lane change for a whole platoon is safe or not.
      * This is done by checking the lane change state and neighbors of all vehicles in the platoon added through
      * the addPlatoonMember API. If the adjacent lane is free and there is enough safe gap for the platoon, the
@@ -441,6 +449,9 @@ private:
 
     /// @brief the car following model which drives the car when automated cruising is disabled, i.e., the human driver
     MSCFModel* myHumanDriver;
+
+    /// @brief the car following model which automatically adjusts target speed when using the SACC "Smart-ACC" plexe controller
+    MSCFModel* mySmartDriver;
 
     /// @brief The maximum deceleration that the CC can output
     const double myCcDecel;

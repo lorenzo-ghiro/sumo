@@ -71,6 +71,9 @@ MSCFModel_CC::MSCFModel_CC(const MSVehicleType* vtype) : MSCFModel(vtype),
     //instantiate the driver model. For now, use Krauss as default, then needs to be parameterized
     myHumanDriver = new MSCFModel_Krauss(vtype);
 
+    //instantiate the smartAcc assistant model. For now, use EIDM, an AI algo may be used in the future
+    mySmartDriver = new MSCFModel_EIDM(vtype);
+
 }
 
 MSCFModel_CC::~MSCFModel_CC() {}
@@ -122,6 +125,13 @@ MSCFModel_CC::setLeader(MSVehicle* veh, MSVehicle* const leader, std::string lea
     {
         vars->isLeader = true;
     }
+}
+
+bool
+MSCFModel_CC::needLaneChange(const MSVehicle* veh) const {
+    int leftState = libsumo::Vehicle::getLaneChangeState(veh->getID(), 1).first;
+    int rightState = libsumo::Vehicle::getLaneChangeState(veh->getID(), -1).first;
+    return (bool) (leftState | rightState) & (LCA_URGENT | LCA_STRATEGIC);
 }
 
 int
@@ -380,10 +390,12 @@ MSCFModel_CC::followSpeed(const MSVehicle* const veh, double speed, double gap2p
     UNUSED_PARAMETER(pred);
     CC_VehicleVariables* vars = (CC_VehicleVariables*)veh->getCarFollowVariables();
 
-    if (vars->activeController != Plexe::DRIVER) {
-        return _v(veh, gap2pred, speed, predSpeed);
-    } else {
+    if (vars->activeController == Plexe::DRIVER) {
         return myHumanDriver->followSpeed(veh, speed, gap2pred, predSpeed, predMaxDecel, pred, usage);
+    } else if (vars->activeController == Plexe::SMARTACC && needLaneChange(veh)) {
+        return  mySmartDriver->followSpeed(veh, speed, gap2pred, predSpeed, predMaxDecel, pred, usage);
+    } else {
+        return _v(veh, gap2pred, speed, predSpeed);
     }
 }
 
@@ -401,29 +413,33 @@ double
 MSCFModel_CC::stopSpeed(const MSVehicle* const veh, double speed, double gap2pred, double decel, const CalcReason usage) const {
 
     CC_VehicleVariables* vars = (CC_VehicleVariables*)veh->getCarFollowVariables();
-    if (vars->activeController != Plexe::DRIVER) {
+    if (vars->activeController == Plexe::DRIVER) {
+        return myHumanDriver->stopSpeed(veh, speed, gap2pred, decel, usage);
+    } else if (vars->activeController == Plexe::SMARTACC && needLaneChange(veh)) {
+        return mySmartDriver->stopSpeed(veh, speed, gap2pred, decel, usage);
+    } else {
         double relSpeed;
         getRadarMeasurements(veh, gap2pred, relSpeed);
         if (gap2pred == -1) {
             gap2pred = std::numeric_limits<double>().max();
         }
         return _v(veh, gap2pred, speed, speed + relSpeed);
-    } else {
-        return myHumanDriver->stopSpeed(veh, speed, gap2pred, decel, usage);
     }
 }
 
 double MSCFModel_CC::freeSpeed(const MSVehicle* const veh, double speed, double seen, double maxSpeed, const bool onInsertion, const CalcReason usage) const {
     CC_VehicleVariables* vars = (CC_VehicleVariables*)veh->getCarFollowVariables();
-    if (vars->activeController != Plexe::DRIVER) {
+    if (vars->activeController == Plexe::DRIVER) {
+        return MSCFModel::freeSpeed(veh, speed, seen, maxSpeed, onInsertion, usage);
+    } else if (vars->activeController == Plexe::SMARTACC && needLaneChange(veh)) {
+        return mySmartDriver->freeSpeed(veh, speed, seen, maxSpeed, onInsertion, usage);
+    } else {
         double gap2pred, relSpeed;
         getRadarMeasurements(veh, gap2pred, relSpeed);
         if (gap2pred == -1) {
             gap2pred = std::numeric_limits<double>().max();
         }
         return _v(veh, gap2pred, speed, speed + relSpeed);
-    } else {
-        return MSCFModel::freeSpeed(veh, speed, seen, maxSpeed, onInsertion, usage);
     }
 }
 
@@ -437,7 +453,6 @@ MSCFModel_CC::interactionGap(const MSVehicle* const veh, double vL) const {
     } else {
         return myHumanDriver->interactionGap(veh, vL);
     }
-
 }
 
 double
@@ -496,6 +511,7 @@ MSCFModel_CC::_v(const MSVehicle* const veh, double gap2pred, double egoSpeed, d
     }
     if (vars->activeController == Plexe::DRIVER || !vars->useFixedAcceleration) {
         switch (vars->activeController) {
+            case Plexe::SMARTACC:
             case Plexe::ACC:
                 ccAcceleration = _cc(veh, egoSpeed, vars->ccDesiredSpeed);
                 accAcceleration = _acc(veh, egoSpeed, predSpeed, gap2pred, vars->accHeadwayTime);
