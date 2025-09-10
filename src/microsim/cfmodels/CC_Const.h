@@ -185,4 +185,6 @@ struct VEHICLE_DATA {
 // perform a lane change for a whole platoon
 #define PAR_PLATOON_FIXED_LANE           "ccpfl"
 
+// enabling/disabling use of radar
+#define PAR_USE_RADAR                    "ccur"
 }
