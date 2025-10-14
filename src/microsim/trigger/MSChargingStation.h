@@ -15,6 +15,7 @@
 /// @author  Daniel Krajzewicz
 /// @author  Tamas Kurczveil
 /// @author  Pablo Alvarez Lopez
+/// @author  Mirko Barthauer
 /// @date    20-12-13
 ///
 // Charging Station for Electric vehicles
@@ -37,7 +38,7 @@ class MSLane;
 class MSBusStop;
 class OptionsCont;
 class MSDevice_Battery;
-
+class Command;
 
 // ===========================================================================
 // class definitions
@@ -91,15 +92,28 @@ public:
 
     /// @brief constructor
     MSChargingStation(const std::string& chargingStationID, MSLane& lane, double startPos, double endPos,
-                      const std::string& name, double chargingPower, double efficency, bool chargeInTransit,
+                      const std::string& name, double chargingPower, double totalPower, double efficency, bool chargeInTransit,
                       SUMOTime chargeDelay, const std::string& chargeType, SUMOTime waitingTime);
 
     MSChargingStation(const std::string& chargingStationID, const MSParkingArea* parkingArea, const std::string& name, double chargingPower,
-                      double efficency, bool chargeInTransit, SUMOTime chargeDelay, const std::string& chargeType,
+                      double totalPower, double efficency, bool chargeInTransit, SUMOTime chargeDelay, const std::string& chargeType,
                       SUMOTime waitingTime);
 
     /// @brief destructor
     ~MSChargingStation();
+
+    /** @brief Called if a vehicle enters this stop
+     *
+     * Stores the position of the entering vehicle in myEndPositions.
+     *
+     * Recomputes the free space using "computeLastFreePos" then.
+     *
+     * @param[in] what The vehicle that enters the bus stop
+     * @param[in] beg The begin halting position of the vehicle
+     * @param[in] what The end halting position of the vehicle
+     * @see computeLastFreePos
+     */
+    void enter(SUMOVehicle* veh, bool parking);
 
     /// @brief Get charging station's charging power
     double getChargingPower(bool usingFuel) const;
@@ -138,6 +152,12 @@ public:
 
     /// @brief enable or disable charging vehicle
     void setChargingVehicle(bool value);
+
+    /// @brief set the requested amount of power from all charging vehicles
+    SUMOTime resetRequestedPower(SUMOTime currentTime);
+
+    /// @brief compute how much power can be dedicated to a single requesting vehicle
+    double deliverEnergy(double preferredAmount);
 
     /** @brief Check if a vehicle is inside in  the Charge Station
      * @param[in] position Position of vehicle in the LANE
@@ -204,8 +224,11 @@ protected:
 
     static void writeVehicle(OutputDevice& out, const std::vector<Charge>& chargeSteps, int iStart, int iEnd, double charged);
 
-    /// @brief Charging station's charging power
-    double myChargingPower = 0;
+    /// @brief Charging station's nominal charging power per vehicle
+    double myNominalChargingPower = 0;
+
+    /// @brief The maximal charging power available to serve all charging vehicles (value <= 0 take no effect)
+    double myTotalChargingPower = 0;
 
     /// @brief Efficiency of the charging station
     double myEfficiency = 0;
@@ -228,6 +251,10 @@ protected:
     /// @brief total energy charged by this charging station
     double myTotalCharge = 0;
 
+    /// @brief power sum requested in the last timestep
+    double myRequestedPower = 0;
+    double myPrevRequestedPower = 0;
+
     /// @brief parkingArea the charging station is placed on
     const MSParkingArea* myParkingArea = nullptr;
 
@@ -235,6 +262,9 @@ protected:
     std::map<std::string, std::vector<Charge> > myChargeValues;
     /// @brief order vehicles by time of first charge
     std::vector<std::string> myChargedVehicles;
+
+    /// @brief Event for updating the requested power
+    Command* myUpdateEvent;
 
 private:
     /// @brief Invalidated copy constructor.
