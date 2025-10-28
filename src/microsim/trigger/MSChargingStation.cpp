@@ -49,6 +49,8 @@ MSChargingStation::MSChargingStation(const std::string& chargingStationID, MSLan
     } else {
         myNominalChargingPower = chargingPower;
         myTotalChargingPower = totalPower;
+        myTotalPowerCheckEvent = new WrappingCommand<MSChargingStation>(this, &MSChargingStation::checkTotalPower);
+        MSNet::getInstance()->getEndOfTimestepEvents()->addEvent(myTotalPowerCheckEvent);
     }
     if (efficency < 0 || efficency > 1) {
         WRITE_WARNING(TLF("Attribute % for chargingStation with ID='%' is invalid (%).", toString(SUMO_ATTR_EFFICIENCY), getID(), toString(efficency)))
@@ -180,6 +182,44 @@ MSChargingStation::resetRequestedPower(SUMOTime /* currentTime */) {
     return 0;
 }
 
+SUMOTime
+MSChargingStation::checkTotalPower(SUMOTime currentTime) {
+    double sumReqWh = 0;
+    std::vector<Charge*> thisStepCharges;
+    for (auto& kv : myChargeValues) {
+        // auto& vid = kv.first;
+        Charge& lastcharge = kv.second.back();
+        if (lastcharge.timeStep == currentTime) {
+            sumReqWh+=lastcharge.WCharged;
+            thisStepCharges.push_back(&lastcharge);
+        }
+    }
+
+    const double capWh = myTotalChargingPower /*W*/ * DELTA_T/1000 /*s*/ / 3600.0; // convert to Wh
+#ifdef DEBUG_SIMSTEP
+    std::cout << "checkTotalPower: CS="
+    << this->myID << " currentTime=" << currentTime << " myTotalChargingPower=" << myTotalChargingPower;
+    if (sumReqWh > capWh && sumReqWh > 0)
+        std::cout << " exceeded, needs rebalancing!";
+    std::cout << std::endl;
+#endif
+
+    if (sumReqWh > capWh && sumReqWh > 0) {
+        const double ratio = capWh / sumReqWh;
+        for (auto* charge : thisStepCharges) {
+            const double deliveredWh = charge->WCharged * ratio;
+            const double excessWh    = charge->WCharged - deliveredWh;
+            charge->WCharged = deliveredWh;
+            //  inform also battery device
+            MSDevice_Battery* battery = myChargedBatteries[charge->vehicleID];
+            double abc = battery->getActualBatteryCapacity();
+            battery->setActualBatteryCapacity(abc-excessWh);
+            battery->setEnergyCharged(deliveredWh);
+        }
+    }
+    return DELTA_T;
+}
+
 
 double
 MSChargingStation::deliverEnergy(double preferredAmount) {
@@ -233,6 +273,7 @@ MSChargingStation::addChargeValueForOutput(double WCharged, MSDevice_Battery* ba
     const std::string vehID = battery->getHolder().getID();
     if (myChargeValues.count(vehID) == 0) {
         myChargedVehicles.push_back(vehID);
+        myChargedBatteries[vehID] = battery;
     }
     Charge C(MSNet::getInstance()->getCurrentTimeStep(), vehID, battery->getHolder().getVehicleType().getID(),
              status, WCharged, battery->getActualBatteryCapacity(), battery->getMaximumBatteryCapacity(),

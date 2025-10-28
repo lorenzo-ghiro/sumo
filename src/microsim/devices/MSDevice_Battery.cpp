@@ -365,6 +365,11 @@ MSDevice_Battery::setActualBatteryCapacity(const double actualBatteryCapacity) {
     }
 }
 
+void
+MSDevice_Battery::setEnergyCharged(const double energyCharged) {
+    myEnergyCharged = energyCharged;
+}
+
 
 void
 MSDevice_Battery::setMaximumBatteryCapacity(const double maximumBatteryCapacity) {

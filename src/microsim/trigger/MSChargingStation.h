@@ -156,6 +156,8 @@ public:
     /// @brief set the requested amount of power from all charging vehicles
     SUMOTime resetRequestedPower(SUMOTime currentTime);
 
+    SUMOTime checkTotalPower(SUMOTime currentTime);
+
     /// @brief compute how much power can be dedicated to a single requesting vehicle
     double deliverEnergy(double preferredAmount);
 
@@ -265,6 +267,11 @@ protected:
 
     /// @brief Event for updating the requested power
     Command* myUpdateEvent;
+
+    /// @brief Event for checking at every time-step if myTotalPower has been exceeded
+    Command* myTotalPowerCheckEvent;
+    /// @brief map with the Batteries charged by this charging station (key = vehicleID)
+    std::map<std::string, MSDevice_Battery* > myChargedBatteries;
 
 private:
     /// @brief Invalidated copy constructor.
