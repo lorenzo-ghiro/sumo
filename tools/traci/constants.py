@@ -1454,6 +1454,9 @@ VAR_CS_CHARGE_IN_TRANSIT = 0x99
 #  charging station power
 VAR_CS_CHARGE_DELAY = 0x9a
 
+#  charging station total power
+VAR_CS_TOTAL_POWER = 0x9c
+
 #  parking area access permissions
 VAR_ACCESS_BADGE = 0x9b
 
