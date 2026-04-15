@@ -220,13 +220,63 @@ MSChargingStation::checkTotalPower(SUMOTime currentTime) {
     std::cout << std::endl;
 #endif
     if (sumReqWh > capWh && sumReqWh > 0) {
-        const double ratio = capWh / sumReqWh;
-        for (auto* charge : thisStepCharges) {
-            MSDevice_Battery* battery = myChargedBatteries[charge->vehicleID];
-            double abc = battery->getActualBatteryCapacity();
+        // Allocate the available energy budget among concurrently charging
+        // vehicles using a max-min fair-share algorithm.  The approach
+        // models a passive, uncoordinated charging infrastructure: the
+        // station imposes no explicit negotiation between vehicles; instead,
+        // power is shared as if all connectors draw from a common bus whose
+        // total capacity is capped at totalPower.
+        //
+        // Algorithm (water-filling / max-min fairness):
+        //   1. Sort vehicles by their requested energy in ascending order.
+        //   2. Iterate over vehicles i = 0 … N-1.  At step i there are
+        //      (N - i) vehicles whose allocation has not yet been decided;
+        //      their equal fair share of the remaining budget is
+        //        fairShare = budgetWh / (N - i)
+        //   3. If vehicle i requests at most fairShare it is fully satisfied;
+        //      its allocation equals its request, and the unspent difference
+        //      (fairShare - request) is redistributed to the remaining
+        //      vehicles by *not* subtracting it from budgetWh.
+        //   4. As soon as a vehicle's request exceeds the current fairShare,
+        //      all remaining vehicles (including that vehicle) are capped at
+        //      fairShare and the loop terminates.
+        //
+        // This guarantees that (a) no vehicle receives more than it requests,
+        // (b) every vehicle that requests less than the equal share is fully
+        // satisfied, (c) all remaining vehicles receive the same power level,
+        // and (d) the full capWh budget is consumed whenever aggregate demand
+        // exceeds capacity.
+        std::sort(thisStepCharges.begin(), thisStepCharges.end(),
+                  [](const Charge* a, const Charge* b) {
+                      return a->WCharged < b->WCharged;
+                  });
 
-            const double deliveredWh = charge->WCharged * ratio;
-            const double excessWh = charge->WCharged - deliveredWh;
+        const int N = (int)thisStepCharges.size();
+        std::vector<double> allocation(N);
+        double budgetWh = capWh;
+
+        for (int i = 0; i < N; i++) {
+            const double fairShare = budgetWh / (N - i);
+            if (thisStepCharges[i]->WCharged <= fairShare) {
+                // fully satisfy this vehicle; surplus stays for the rest
+                allocation[i] = thisStepCharges[i]->WCharged;
+                budgetWh -= allocation[i];
+            } else {
+                // budget saturated: cap every remaining vehicle at fairShare
+                for (int j = i; j < N; j++) {
+                    allocation[j] = fairShare;
+                }
+                break;
+            }
+        }
+
+        for (int i = 0; i < N; i++) {
+            Charge* charge = thisStepCharges[i];
+            MSDevice_Battery* battery = myChargedBatteries[charge->vehicleID];
+            const double abc = battery->getActualBatteryCapacity();
+            const double requestedWh = charge->WCharged;
+            const double deliveredWh = allocation[i];
+            const double excessWh = requestedWh - deliveredWh;
             charge->WCharged = deliveredWh;
             if (charge->chargingEfficiency > 0 && TS > 0) {
                 // derive power [W] from energy [Wh]: Power = (Energy [Wh] * 3600) [Ws] / (efficiency * TS [s])
@@ -244,10 +294,10 @@ MSChargingStation::checkTotalPower(SUMOTime currentTime) {
 #ifdef DEBUG_SIMSTEP
             std::cout << "time=" << time2string(currentTime)
                       << " vehID=" << charge->vehicleID
-                      << " requestedWh=" << (deliveredWh + excessWh)
+                      << " requestedWh=" << requestedWh
                       << " deliveredWh=" << deliveredWh
                       << " deliveredW="  << charge->chargingPower
-                      << " ratio=" << ratio << std::endl;
+                      << std::endl;
 #endif
         }
 #ifdef DEBUG_SIMSTEP
